@@ -15,7 +15,11 @@ log = logging.getLogger(__name__)
 BASE_URL = "https://www.okx.com"
 
 
-class OKXError(Exception):
+class ExchangeError(Exception):
+    """모든 거래소 API 오류의 공통 부모."""
+
+
+class OKXError(ExchangeError):
     def __init__(self, code, msg, data=None):
         super().__init__(f"OKX error {code}: {msg}")
         self.code, self.msg, self.data = code, msg, data

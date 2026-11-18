@@ -5,11 +5,18 @@ import os
 import time
 from decimal import Decimal, ROUND_DOWN
 
-from .client import OKXClient, OKXError
+from .bybit_client import BybitClient
+from .client import ExchangeError, OKXClient
 from .config import Config
 from .strategy import Signal, crossover_signal, risk_exit
 
 log = logging.getLogger(__name__)
+
+
+def make_client(cfg: Config):
+    if cfg.exchange == "bybit":
+        return BybitClient(cfg.api_key, cfg.api_secret, demo=cfg.demo)
+    return OKXClient(cfg.api_key, cfg.api_secret, cfg.passphrase, demo=cfg.demo)
 
 
 def round_down(value: float, step: str) -> str:
@@ -20,7 +27,7 @@ def round_down(value: float, step: str) -> str:
 class TradingBot:
     def __init__(self, cfg: Config, client: OKXClient | None = None):
         self.cfg = cfg
-        self.client = client or OKXClient(cfg.api_key, cfg.api_secret, cfg.passphrase, demo=cfg.demo)
+        self.client = client or make_client(cfg)
         self.base_ccy, self.quote_ccy = cfg.inst_id.split("-")
         self.state = self._load_state()
         self.last_candle_ts = None
@@ -115,13 +122,13 @@ class TradingBot:
 
     def run(self):
         mode = "DRY-RUN(주문 안 함)" if self.cfg.dry_run else ("데모" if self.cfg.demo else "⚠️ 실거래")
-        log.info("봇 시작: %s %s, EMA %d/%d, 모드=%s", self.cfg.inst_id, self.cfg.bar,
+        log.info("봇 시작: [%s] %s %s, EMA %d/%d, 모드=%s", self.cfg.exchange.upper(), self.cfg.inst_id, self.cfg.bar,
                  self.cfg.ema_fast, self.cfg.ema_slow, mode)
         while True:
             try:
                 self.step()
-            except OKXError as e:
-                log.error("OKX API 오류: %s", e)
+            except ExchangeError as e:
+                log.error("거래소 API 오류: %s", e)
             except Exception:
                 log.exception("예상치 못한 오류")
             time.sleep(self.cfg.poll_seconds)
